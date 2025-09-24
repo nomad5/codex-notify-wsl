@@ -40,13 +40,7 @@ NOTIFY_DEBUG="${CODEX_NOTIFY_DEBUG:-$NOTIFY_DEBUG}"
 # Expand log file path
 LOG_FILE=$(eval echo "$LOG_FILE")
 
-# Find codex binary
-CODEX_CMD="$(command -v codex 2>/dev/null)"
-if [[ -z "$CODEX_CMD" ]]; then
-    echo "Error: codex not found in PATH" >&2
-    echo "Please install codex first: npm install -g @openai/codex" >&2
-    exit 1
-fi
+# Codex binary will be checked later when needed
 
 # Logging function
 log_notification() {
@@ -306,6 +300,14 @@ CUSTOM_PATTERN_REGEX=""
 # Custom patterns trigger informational notifications so contributors can detect bespoke events
 if [[ -n "$CUSTOM_PATTERNS" ]]; then
     CUSTOM_PATTERN_REGEX="$CUSTOM_PATTERNS"
+fi
+
+# Find codex binary (only needed for main execution)
+CODEX_CMD="$(command -v codex 2>/dev/null)"
+if [[ -z "$CODEX_CMD" ]]; then
+    echo "Error: codex not found in PATH" >&2
+    echo "Please install codex first: npm install -g @openai/codex" >&2
+    exit 1
 fi
 
 # Track start time for long-running detection
