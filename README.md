@@ -1,5 +1,16 @@
 # Codex Notify for WSL
 
+[![npm version](https://img.shields.io/npm/v/codex-notify-wsl.svg)](https://www.npmjs.com/package/codex-notify-wsl)
+[![npm downloads](https://img.shields.io/npm/dm/codex-notify-wsl.svg)](https://www.npmjs.com/package/codex-notify-wsl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node version](https://img.shields.io/node/v/codex-notify-wsl.svg)](https://nodejs.org)
+[![GitHub stars](https://img.shields.io/github/stars/nomad5/codex-notify-wsl.svg?style=social)](https://github.com/nomad5/codex-notify-wsl)
+[![GitHub issues](https://img.shields.io/github/issues/nomad5/codex-notify-wsl.svg)](https://github.com/nomad5/codex-notify-wsl/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/nomad5/codex-notify-wsl/pulls)
+[![WSL 2](https://img.shields.io/badge/WSL-2-blue.svg)](https://docs.microsoft.com/en-us/windows/wsl/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue.svg)](https://www.microsoft.com/windows)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/nomad5/codex-notify-wsl/graphs/commit-activity)
+
 Windows toast notifications for Codex running in WSL. Never miss an approval prompt again.
 
 ## Features
