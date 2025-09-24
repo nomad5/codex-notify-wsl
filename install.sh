@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Codex Notify Installer
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+BIN_SOURCE="$SCRIPT_DIR/bin/codex-notify"
+TEMPLATE_SOURCE="$SCRIPT_DIR/config/.env.example"
+NOTIFY_PY_SOURCE="$SCRIPT_DIR/lib/notify.py"
 
 # Colors
 RED='\033[0;31m'
@@ -74,23 +79,30 @@ mkdir -p ~/bin
 mkdir -p ~/.codex
 
 # Copy main script
-cp codex-notify ~/bin/
+cp "$BIN_SOURCE" ~/bin/
 chmod +x ~/bin/codex-notify
 echo -e "${GREEN}✓${NC} Installed codex-notify to ~/bin/"
 
 # Copy config if it doesn't exist
 if [[ ! -f ~/.codex/notify.env ]]; then
-    cp .env.example ~/.codex/notify.env
-    echo -e "${GREEN}✓${NC} Created config file ~/.codex/notify.env"
+    if [[ -f "$TEMPLATE_SOURCE" ]]; then
+        cp "$TEMPLATE_SOURCE" ~/.codex/notify.env
+        echo -e "${GREEN}✓${NC} Created config file ~/.codex/notify.env"
+    else
+        echo -e "${YELLOW}!${NC} Configuration template missing at $TEMPLATE_SOURCE"
+        exit 1
+    fi
 else
     echo -e "${YELLOW}!${NC} Config already exists, keeping your settings"
 fi
 
 # Copy notify.py for Linux sounds
-if [[ -f src/notify.py ]]; then
-    cp src/notify.py ~/.codex/
+if [[ -f "$NOTIFY_PY_SOURCE" ]]; then
+    cp "$NOTIFY_PY_SOURCE" ~/.codex/
     chmod +x ~/.codex/notify.py
     echo -e "${GREEN}✓${NC} Installed Linux sound support"
+else
+    echo -e "${YELLOW}!${NC} notify.py not found; skipping sound support"
 fi
 
 # Setup aliases

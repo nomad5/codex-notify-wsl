@@ -21,6 +21,9 @@ LOG_FILE=~/.codex/notifications.log
 MAX_LOG_SIZE=10485760
 ROTATE_LOGS=true
 
+# Resolve script directory for locating bundled assets/templates
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
 # Load user configuration
 CONFIG_FILE="${HOME}/.codex/notify.env"
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -50,6 +53,9 @@ log_notification() {
     local level="$1"
     local message="$2"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    # Ensure log directory exists
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 
     # Rotate log if needed
     if [[ "$ROTATE_LOGS" == "true" ]] && [[ -f "$LOG_FILE" ]]; then
@@ -97,22 +103,26 @@ check_notification_method() {
 
 # Send Windows notification
 send_notification() {
-    local title="${1//"/\"}"
-    local message="${2//"/\"}"
+    local raw_title="${1//$'\r'/}"
+    local raw_message="${2//$'\r'/}"
     local type="${3:-info}"
-    local persistent="${4:-$NOTIFY_PERSISTENT}"
-
-    # Sanitize input - remove potential command injection characters
-    title="${title//$/\$}"
-    title="${title//\`/}"
-    message="${message//$/\$}"
-    message="${message//\`/}"
+    local persistent_flag="${4:-$NOTIFY_PERSISTENT}"
 
     if [[ "$NOTIFY_ENABLED" != "true" ]]; then
         return
     fi
 
-    # Check if this type of notification is enabled
+    # Normalise and sanitise input to avoid injection and UI artifacts
+    local title="${raw_title//$'\n'/ }"
+    title="${title//$'\t'/ }"
+    title="${title//\`/}"
+    title="${title//$'\u001b'/}"
+
+    local message="${raw_message//$'\n'/ }"
+    message="${message//$'\t'/ }"
+    message="${message//\`/}"
+    message="${message//$'\u001b'/}"
+
     case "$type" in
         approval) [[ "$NOTIFY_ON_APPROVAL" != "true" ]] && return ;;
         success)  [[ "$NOTIFY_ON_SUCCESS" != "true" ]] && return ;;
@@ -123,46 +133,83 @@ send_notification() {
 
     log_notification "$type" "$title: $message"
 
-    local method=$(check_notification_method)
+    local method
+    method=$(check_notification_method)
 
-    # Add emoji if enabled
+    local display_title="$title"
     if [[ "$USE_EMOJIS" == "true" ]]; then
         case "$type" in
-            error)    title="❌ $title" ;;
-            success)  title="✅ $title" ;;
-            approval) title="🔐 $title" ;;
-            warning)  title="⚠️ $title" ;;
-            info)     title="ℹ️ $title" ;;
-            longrun)  title="⏱️ $title" ;;
-            start)    title="▶️ $title" ;;
+            error)    display_title="❌ $display_title" ;;
+            success)  display_title="✅ $display_title" ;;
+            approval) display_title="🔐 $display_title" ;;
+            warning)  display_title="⚠️ $display_title" ;;
+            info)     display_title="ℹ️ $display_title" ;;
+            longrun)  display_title="⏱️ $display_title" ;;
+            start)    display_title="▶️ $display_title" ;;
         esac
     fi
 
+    local sound="Default"
+    case "$type" in
+        error|approval) sound="Alarm" ;;
+        success)        sound="SMS" ;;
+    esac
+
     case "$method" in
         burnttoast)
-            local ps_cmd="Import-Module BurntToast; New-BurntToastNotification -Text '$title','$message'"
-            ps_cmd="$ps_cmd -AppLogo 'C:\\Windows\\System32\\cmd.exe'"
+            local ps_persistent="false"
+            [[ "$persistent_flag" == "true" ]] && ps_persistent="true"
 
-            # Sound based on type
-            case "$type" in
-                error|approval) ps_cmd="$ps_cmd -Sound 'Alarm'" ;;
-                success)        ps_cmd="$ps_cmd -Sound 'SMS'" ;;
-                *)              ps_cmd="$ps_cmd -Sound 'Default'" ;;
-            esac
+            (
+                local ps_temp
+                ps_temp=$(mktemp)
+                cat <<'POWERSHELL' >"$ps_temp"
+param(
+    [string]$Title,
+    [string]$Message,
+    [string]$AppId,
+    [string]$Sound,
+    [string]$Persistent
+)
+try {
+    Import-Module BurntToast -ErrorAction Stop
+    $toastArgs = @{
+        Text   = @($Title, $Message)
+        AppId  = $AppId
+        AppLogo = 'C:\Windows\System32\cmd.exe'
+    }
+    if ($Sound -and $Sound -ne 'Default') {
+        $toastArgs.Sound = $Sound
+    }
+    if ($Persistent -eq 'true') {
+        $toastArgs.ExpirationTime = [DateTime]::Now.AddHours(1)
+    }
+    New-BurntToastNotification @toastArgs | Out-Null
+} catch {
+    Write-Error $_.Exception.Message
+    exit 1
+}
+POWERSHELL
 
-            [[ "$persistent" == "true" ]] && ps_cmd="$ps_cmd -ExpirationTime ([DateTime]::Now.AddHours(1))"
-
-            timeout 10 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ps_cmd" 2>/dev/null &
+                timeout 10 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps_temp" \
+                    "$display_title" "$message" "$WINDOWS_APP_ID" "$sound" "$ps_persistent" \
+                    >/dev/null 2>&1
+                rm -f "$ps_temp"
+            ) &
             ;;
 
         snoretoast)
-            local args="-t \"$title\" -m \"$message\" -appID \"$WINDOWS_APP_ID\""
-            [[ "$persistent" == "true" ]] && args="$args -d long"
-            timeout 10 snoretoast.exe $args 2>/dev/null &
+            local args=(-t "$display_title" -m "$message" -appID "$WINDOWS_APP_ID")
+            [[ "$persistent_flag" == "true" ]] && args+=(-d "long")
+            timeout 10 snoretoast.exe "${args[@]}" >/dev/null 2>&1 &
             ;;
 
         msg)
-            msg.exe "$USER" "/TIME:30" "$title: $message" 2>/dev/null &
+            local msg_title_clean
+            local msg_message_clean
+            msg_title_clean=$(printf '%s' "$title" | tr -d '"' | tr -d "'")
+            msg_message_clean=$(printf '%s' "$message" | tr -d '"' | tr -d "'")
+            msg.exe "$USER" "/TIME:30" "$msg_title_clean: $msg_message_clean" 2>/dev/null &
             ;;
 
         bell|*)
@@ -170,7 +217,6 @@ send_notification() {
             ;;
     esac
 
-    # Play Linux sound if enabled
     if [[ "$NOTIFY_SOUNDS" == "true" ]] && command -v paplay &>/dev/null; then
         case "$type" in
             success) paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null & ;;
@@ -215,8 +261,14 @@ if [[ "$1" == "config" ]]; then
     else
         echo "Creating config file: $CONFIG_FILE"
         mkdir -p "$(dirname "$CONFIG_FILE")"
-        cp "$(dirname "$0")/.env.example" "$CONFIG_FILE"
-        ${EDITOR:-nano} "$CONFIG_FILE"
+        template_path="$SCRIPT_DIR/../config/.env.example"
+        if [[ -f "$template_path" ]]; then
+            cp "$template_path" "$CONFIG_FILE"
+            ${EDITOR:-nano} "$CONFIG_FILE"
+        else
+            echo "Error: configuration template missing (expected at $template_path)" >&2
+            exit 1
+        fi
     fi
     exit 0
 fi
@@ -226,9 +278,12 @@ APPROVAL_PATTERNS="approval requested|waiting for permission|Approve\?|permissio
 ERROR_PATTERNS="command failed|error occurred|exception|fatal error|failed to execute|permission denied"
 SUCCESS_PATTERNS="task complete|finished successfully|completed successfully|done\.|all tasks completed"
 START_PATTERNS="starting task|beginning|initiating|processing|executing"
+CUSTOM_PATTERN_REGEX=""
 
-# Add custom patterns if defined
-[[ -n "$CUSTOM_PATTERNS" ]] && APPROVAL_PATTERNS="$APPROVAL_PATTERNS|$CUSTOM_PATTERNS"
+# Custom patterns trigger informational notifications so contributors can detect bespoke events
+if [[ -n "$CUSTOM_PATTERNS" ]]; then
+    CUSTOM_PATTERN_REGEX="$CUSTOM_PATTERNS"
+fi
 
 # Track start time for long-running detection
 START_TIME=$(date +%s)
@@ -278,6 +333,10 @@ trap cleanup EXIT
 
         elif echo "$line" | grep -qiE "$SUCCESS_PATTERNS"; then
             send_notification "Codex Complete" "Task finished" "success"
+            LAST_NOTIFICATION=$current_time
+
+        elif [[ -n "$CUSTOM_PATTERN_REGEX" ]] && echo "$line" | grep -qiE "$CUSTOM_PATTERN_REGEX"; then
+            send_notification "Codex Update" "$line" "info"
             LAST_NOTIFICATION=$current_time
 
         elif echo "$line" | grep -qiE "$START_PATTERNS"; then
