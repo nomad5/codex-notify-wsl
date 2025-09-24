@@ -225,6 +225,23 @@ POWERSHELL
     fi
 }
 
+# Direct send mode for hooks/integrations
+if [[ "$1" == "send" ]]; then
+    shift
+    if [[ -z "$1" || -z "$2" ]]; then
+        echo "Usage: codex-notify send <title> <message> [type] [persistent]" >&2
+        exit 1
+    fi
+
+    title="$1"
+    message="$2"
+    type="${3:-info}"
+    persistent="${4:-$NOTIFY_PERSISTENT}"
+
+    send_notification "$title" "$message" "$type" "$persistent"
+    exit 0
+fi
+
 # Test mode
 if [[ "$1" == "test" ]]; then
     case "$2" in
