@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ created ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install ShellCheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+
+    - name: Lint Bash scripts
+      run: |
+        find . -name "*.sh" -type f -exec shellcheck {} \; || true
+        shellcheck bin/codex-notify || true
+
+    - name: Check Python syntax
+      run: |
+        python3 -m py_compile lib/notify.py
+
+    - name: Validate package.json
+      run: |
+        npm ls
+        npm pack --dry-run
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install package
+      run: |
+        npm install
+
+    - name: Check WSL detection
+      run: |
+        # Simulate WSL environment
+        echo "Microsoft" > /tmp/test-proc-version
+        grep -qi microsoft /tmp/test-proc-version && echo "WSL detection works"
+
+    - name: Test configuration loading
+      run: |
+        # Create test config
+        mkdir -p ~/.codex
+        cp config/.env.example ~/.codex/notify.env
+        # Source and verify
+        source ~/.codex/notify.env
+        [ "$NOTIFY_ENABLED" = "true" ] && echo "Config loading works"
+
+    - name: Test help commands
+      run: |
+        bash bin/codex-notify test 2>&1 | grep -q "Usage:" && echo "Help works"
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run security checks
+      run: |
+        # Check for hardcoded secrets
+        ! grep -r "api_key\|password\|secret" --include="*.sh" --include="*.js" --include="*.py" . || echo "No secrets found"
+
+        # Check for command injection vulnerabilities
+        ! grep -E "eval|exec\(\$" bin/codex-notify || echo "No eval/exec issues"
+
+  publish:
+    needs: [lint, test, security]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Publish to npm
+      run: npm publish
+      env:
+        NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

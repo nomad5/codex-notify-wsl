@@ -140,14 +140,43 @@ codex-notify test error
 
 ### No notifications appearing
 
-1. Check Windows Focus Assist settings
-2. Verify notification tool is installed:
+1. **Check Windows Focus Assist settings**
+   - Open Windows Settings → System → Focus assist
+   - Ensure it's set to "Off" or configure priority list
+
+2. **Verify notification tool is installed**
    ```powershell
+   # Check BurntToast
    Get-Module -ListAvailable -Name BurntToast
+
+   # Check SnoreToast
+   Test-Path "C:\Windows\System32\snoretoast.exe"
    ```
-3. Check logs:
+
+3. **Check WSL integration**
    ```bash
-   tail ~/.codex/notifications.log
+   # Verify PowerShell access from WSL
+   powershell.exe -Command "echo 'PowerShell works'"
+
+   # Check if running in WSL
+   grep -qi microsoft /proc/version && echo "WSL detected"
+   ```
+
+4. **Review logs**
+   ```bash
+   # Check recent notifications
+   tail -f ~/.codex/notifications.log
+
+   # Check for errors
+   grep ERROR ~/.codex/notifications.log
+   ```
+
+5. **Test notification methods directly**
+   ```bash
+   # Test each method
+   CODEX_NOTIFY_METHOD=burnttoast codex-notify test approval
+   CODEX_NOTIFY_METHOD=snoretoast codex-notify test approval
+   CODEX_NOTIFY_METHOD=msg codex-notify test approval
    ```
 
 ### Common Issues
@@ -155,8 +184,33 @@ codex-notify test error
 | Problem | Solution |
 |---------|----------|
 | No notifications | Check Focus Assist, install BurntToast/SnoreToast |
-| No sound | Check Windows volume mixer |
+| No sound | Check Windows volume mixer, verify sound files exist |
 | Wrong notification type | Adjust patterns in config file |
+| PowerShell errors | Run `Set-ExecutionPolicy RemoteSigned` in PowerShell as admin |
+| "codex not found" | Ensure Codex is installed: `npm install -g @openai/codex` |
+| Notifications delayed | Check NOTIFICATION_COOLDOWN setting |
+| Duplicate notifications | Ensure only one instance is running |
+
+### WSL-Specific Issues
+
+1. **PowerShell execution policy**
+   ```powershell
+   # Run in Windows PowerShell as Administrator
+   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+2. **Path issues**
+   ```bash
+   # Ensure Windows paths are accessible
+   echo $PATH | grep -q "/mnt/c" || echo "Windows paths not in PATH"
+   ```
+
+3. **Permission denied**
+   ```bash
+   # Make scripts executable
+   chmod +x ~/.local/bin/codex-notify
+   chmod +x ~/.codex/notify.py
+   ```
 
 ## How It Works
 
@@ -182,10 +236,55 @@ install.sh          # Installation script
 README.md          # This file
 ```
 
+## Uninstallation
+
+To completely remove Codex Notify:
+
+```bash
+# Uninstall npm package
+npm uninstall -g codex-notify-wsl
+
+# Remove configuration
+rm -f ~/.codex/notify.env
+rm -f ~/.codex/notify.py
+rm -f ~/.codex/notifications.log*
+
+# Remove aliases from shell config
+# Edit ~/.bashrc or ~/.zshrc and remove the Codex Notify section
+```
+
+## FAQ
+
+**Q: Can I use this without WSL?**
+A: No, this tool is specifically designed for WSL environments. For native Windows, use Windows notification APIs directly.
+
+**Q: Does this work with WSL 1?**
+A: It should work but WSL 2 is recommended for better Windows integration.
+
+**Q: Can I customize notification icons?**
+A: Currently limited to what BurntToast/SnoreToast provide. Custom icons may be added in future versions.
+
+**Q: Why aren't notifications showing in Action Center?**
+A: Ensure NOTIFY_PERSISTENT is set to true and you're using BurntToast.
+
+**Q: Can I use this with other CLI tools?**
+A: Yes, the wrapper pattern can be adapted for any CLI tool that outputs to stdout/stderr.
+
+**Q: How do I disable notifications temporarily?**
+A: Set `CODEX_NOTIFY_ENABLED=false` or use the `codex-silent` alias.
+
 ## Contributing
 
-Pull requests welcome. Please test changes with both BurntToast and fallback methods.
+Pull requests welcome. Please test changes with both BurntToast and fallback methods. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 
-MIT
+MIT - See [LICENSE](LICENSE) file for details.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+## Support
+
+For issues and feature requests, please use the [GitHub issues page](https://github.com/nomad5/codex-notify-wsl/issues).

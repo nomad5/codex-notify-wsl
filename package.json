@@ -1,6 +1,6 @@
 {
   "name": "codex-notify-wsl",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Windows toast notifications for Codex running in WSL",
   "main": "lib/index.js",
   "bin": {
@@ -15,23 +15,34 @@
   "keywords": [
     "codex",
     "wsl",
+    "wsl2",
     "notifications",
     "windows",
     "toast",
+    "burnttoast",
+    "snoretoast",
     "ai",
-    "coding-assistant"
+    "coding-assistant",
+    "developer-tools",
+    "productivity",
+    "windows-subsystem-linux"
   ],
   "author": "nomad5",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nomad5/codex-notify-wsl.git"
+    "url": "git+https://github.com/nomad5/codex-notify-wsl.git"
   },
+  "bugs": {
+    "url": "https://github.com/nomad5/codex-notify-wsl/issues"
+  },
+  "homepage": "https://github.com/nomad5/codex-notify-wsl#readme",
   "os": [
     "linux"
   ],
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
   },
   "preferGlobal": true,
   "files": [
@@ -39,9 +50,9 @@
     "lib/",
     "scripts/",
     "config/",
-    ".env.example",
+    "LICENSE",
     "README.md",
-    "LICENSE"
+    "CHANGELOG.md"
   ],
   "dependencies": {}
 }

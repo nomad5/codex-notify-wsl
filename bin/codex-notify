@@ -38,9 +38,10 @@ NOTIFY_DEBUG="${CODEX_NOTIFY_DEBUG:-$NOTIFY_DEBUG}"
 LOG_FILE=$(eval echo "$LOG_FILE")
 
 # Find codex binary
-CODEX_CMD="$(which codex 2>/dev/null)"
+CODEX_CMD="$(command -v codex 2>/dev/null)"
 if [[ -z "$CODEX_CMD" ]]; then
     echo "Error: codex not found in PATH" >&2
+    echo "Please install codex first: npm install -g @openai/codex" >&2
     exit 1
 fi
 
@@ -52,7 +53,15 @@ log_notification() {
 
     # Rotate log if needed
     if [[ "$ROTATE_LOGS" == "true" ]] && [[ -f "$LOG_FILE" ]]; then
-        local size=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null)
+        local size=0
+        # Cross-platform stat command
+        if stat --version 2>/dev/null | grep -q GNU; then
+            # GNU stat (Linux)
+            size=$(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
+        else
+            # BSD stat (macOS)
+            size=$(stat -f%z "$LOG_FILE" 2>/dev/null || echo 0)
+        fi
         if [[ $size -gt $MAX_LOG_SIZE ]]; then
             mv "$LOG_FILE" "${LOG_FILE}.old"
         fi
@@ -88,10 +97,16 @@ check_notification_method() {
 
 # Send Windows notification
 send_notification() {
-    local title="$1"
-    local message="$2"
+    local title="${1//"/\"}"
+    local message="${2//"/\"}"
     local type="${3:-info}"
     local persistent="${4:-$NOTIFY_PERSISTENT}"
+
+    # Sanitize input - remove potential command injection characters
+    title="${title//$/\$}"
+    title="${title//\`/}"
+    message="${message//$/\$}"
+    message="${message//\`/}"
 
     if [[ "$NOTIFY_ENABLED" != "true" ]]; then
         return
@@ -137,13 +152,13 @@ send_notification() {
 
             [[ "$persistent" == "true" ]] && ps_cmd="$ps_cmd -ExpirationTime ([DateTime]::Now.AddHours(1))"
 
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ps_cmd" 2>/dev/null &
+            timeout 10 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ps_cmd" 2>/dev/null &
             ;;
 
         snoretoast)
             local args="-t \"$title\" -m \"$message\" -appID \"$WINDOWS_APP_ID\""
             [[ "$persistent" == "true" ]] && args="$args -d long"
-            eval "snoretoast.exe $args" 2>/dev/null &
+            timeout 10 snoretoast.exe $args 2>/dev/null &
             ;;
 
         msg)
@@ -222,7 +237,7 @@ LAST_NOTIFICATION=0
 
 # Monitor function for long-running tasks
 monitor_duration() {
-    while kill -0 $$ 2>/dev/null; do
+    while kill -0 "$$" 2>/dev/null; do
         local current_time=$(date +%s)
         local elapsed=$((current_time - START_TIME))
 
@@ -237,7 +252,7 @@ monitor_duration() {
 MONITOR_PID=$!
 
 cleanup() {
-    kill $MONITOR_PID 2>/dev/null
+    [[ -n "$MONITOR_PID" ]] && kill "$MONITOR_PID" 2>/dev/null
 }
 trap cleanup EXIT
 
