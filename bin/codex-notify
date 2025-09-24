@@ -244,6 +244,12 @@ fi
 
 # Test mode
 if [[ "$1" == "test" ]]; then
+    # Show usage if no test type specified
+    if [[ -z "$2" ]]; then
+        echo "Usage: codex-notify test {approval|success|error|all}"
+        exit 1
+    fi
+
     case "$2" in
         approval)
             send_notification "Codex Approval Required" "Switch to terminal to approve" "approval" "true"
