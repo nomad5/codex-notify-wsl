@@ -50,7 +50,7 @@ function setup() {
   console.log('=====================================\n');
 
   // Check environment
-  if (!isWSL()) {
+  if (!process.env.GITHUB_ACTIONS && !isWSL()) {
     console.error('Error: This package must be installed in WSL');
     console.log('Please install from within Windows Subsystem for Linux');
     process.exit(1);
