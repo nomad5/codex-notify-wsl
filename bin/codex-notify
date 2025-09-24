@@ -247,7 +247,7 @@ if [[ "$1" == "test" ]]; then
     # Show usage if no test type specified
     if [[ -z "$2" ]]; then
         echo "Usage: codex-notify test {approval|success|error|all}"
-        exit 1
+        exit 0
     fi
 
     case "$2" in
