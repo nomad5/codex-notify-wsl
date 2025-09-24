@@ -21,11 +21,11 @@
     "ai",
     "coding-assistant"
   ],
-  "author": "",
+  "author": "nomad5",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/codex-notify-wsl.git"
+    "url": "https://github.com/nomad5/codex-notify-wsl.git"
   },
   "os": [
     "linux"
