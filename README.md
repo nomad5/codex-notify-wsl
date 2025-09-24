@@ -1,9 +1,7 @@
 # Codex Notify for WSL
 
-[![npm version](https://img.shields.io/npm/v/codex-notify-wsl.svg)](https://www.npmjs.com/package/codex-notify-wsl)
-[![npm downloads](https://img.shields.io/npm/dm/codex-notify-wsl.svg)](https://www.npmjs.com/package/codex-notify-wsl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node version](https://img.shields.io/node/v/codex-notify-wsl.svg)](https://nodejs.org)
+![Node](https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen)
 [![GitHub stars](https://img.shields.io/github/stars/nomad5/codex-notify-wsl.svg?style=social)](https://github.com/nomad5/codex-notify-wsl)
 [![GitHub issues](https://img.shields.io/github/issues/nomad5/codex-notify-wsl.svg)](https://github.com/nomad5/codex-notify-wsl/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/nomad5/codex-notify-wsl/pulls)
