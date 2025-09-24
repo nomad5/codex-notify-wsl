@@ -4,8 +4,8 @@
   "description": "Windows toast notifications for Codex running in WSL",
   "main": "lib/index.js",
   "bin": {
-    "codex-notify": "./bin/codex-notify",
-    "codex-notify-setup": "./bin/setup.js"
+    "codex-notify": "bin/codex-notify",
+    "codex-notify-setup": "bin/setup.js"
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
