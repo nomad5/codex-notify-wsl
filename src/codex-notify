@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+# Enhanced Codex wrapper with Windows toast notifications for WSL
+# Monitors Codex output and triggers notifications for various events
+
+# Configuration defaults
+NOTIFY_CONFIG="${HOME}/.codex/notify-config.sh"
+NOTIFY_LOG="${HOME}/.codex/notifications.log"
+CODEX_CMD="$(which codex)"
+
+# Load user configuration if it exists
+[ -f "$NOTIFY_CONFIG" ] && source "$NOTIFY_CONFIG"
+
+# Environment variable overrides
+NOTIFY_METHOD="${CODEX_NOTIFY_METHOD:-auto}"
+NOTIFY_SOUND="${CODEX_NOTIFY_SOUND:-true}"
+NOTIFY_PERSISTENT="${CODEX_NOTIFY_PERSISTENT:-false}"
+NOTIFY_DEBUG="${CODEX_NOTIFY_DEBUG:-false}"
+NOTIFY_DISABLE="${CODEX_NOTIFY_DISABLE:-false}"
+CUSTOM_PATTERNS="${CODEX_NOTIFY_PATTERNS:-}"
+
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging function
+log_notification() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" >> "$NOTIFY_LOG"
+
+    if [[ "$NOTIFY_DEBUG" == "true" ]]; then
+        echo -e "${BLUE}[NOTIFY]${NC} $message" >&2
+    fi
+}
+
+# Check for available notification methods
+check_notification_method() {
+    if [[ "$NOTIFY_METHOD" != "auto" ]]; then
+        echo "$NOTIFY_METHOD"
+        return
+    fi
+
+    # Check for BurntToast
+    if powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Module -ListAvailable -Name BurntToast" 2>/dev/null | grep -q "BurntToast"; then
+        echo "burnttoast"
+        return
+    fi
+
+    # Check for SnoreToast
+    if [[ -f "/mnt/c/Windows/System32/snoretoast.exe" ]] || command -v snoretoast.exe &>/dev/null; then
+        echo "snoretoast"
+        return
+    fi
+
+    # Fallback to msg command
+    if command -v msg.exe &>/dev/null; then
+        echo "msg"
+        return
+    fi
+
+    echo "bell"
+}
+
+# Send Windows toast notification
+send_notification() {
+    local title="$1"
+    local message="$2"
+    local type="${3:-info}"  # info, success, warning, error, approval
+    local persistent="${4:-$NOTIFY_PERSISTENT}"
+
+    if [[ "$NOTIFY_DISABLE" == "true" ]]; then
+        return
+    fi
+
+    log_notification "$type" "$title: $message"
+
+    local method=$(check_notification_method)
+
+    case "$method" in
+        burnttoast)
+            # Add emojis and enhanced titles based on type
+            local enhanced_title="$title"
+            local icon_path=""
+            local windows_user=$(powershell.exe -NoProfile -Command 'echo $env:USERPROFILE' | tr -d '\r')
+            local icon_dir="${windows_user}\\.codex\\icons"
+
+            case "$type" in
+                error)
+                    enhanced_title="❌ $title"
+                    icon_path="${icon_dir}\\error.png"
+                    ;;
+                success)
+                    enhanced_title="✅ $title"
+                    icon_path="${icon_dir}\\success.png"
+                    ;;
+                approval)
+                    enhanced_title="🔐 $title"
+                    icon_path="${icon_dir}\\approval.png"
+                    persistent="true"
+                    ;;
+                warning)
+                    enhanced_title="⚠️ $title"
+                    icon_path="${icon_dir}\\warning.png"
+                    ;;
+                info)
+                    enhanced_title="ℹ️ $title"
+                    icon_path="${icon_dir}\\info.png"
+                    ;;
+                *)
+                    enhanced_title="📢 $title"
+                    icon_path="${icon_dir}\\info.png"
+                    ;;
+            esac
+
+            local ps_cmd="Import-Module BurntToast; New-BurntToastNotification -Text '$enhanced_title','$message'"
+
+            # Check if custom icon exists, otherwise use default
+            local icon_check=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (Test-Path '$icon_path') { echo 'exists' }" | tr -d '\r\n')
+
+            if [[ "$icon_check" == "exists" ]]; then
+                ps_cmd="$ps_cmd -AppLogo '$icon_path'"
+            else
+                # Fallback to Windows Terminal icon or cmd.exe
+                if powershell.exe -NoProfile -Command "Test-Path 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal*\\WindowsTerminal.exe'" 2>/dev/null | grep -q "True"; then
+                    # Try to use Windows Terminal icon
+                    ps_cmd="$ps_cmd -AppLogo 'C:\\Windows\\System32\\cmd.exe'"
+                else
+                    ps_cmd="$ps_cmd -AppLogo 'C:\\Windows\\System32\\cmd.exe'"
+                fi
+            fi
+
+            # Set notification sound based on type
+            case "$type" in
+                error)
+                    ps_cmd="$ps_cmd -Sound 'Alarm'"
+                    ;;
+                success)
+                    ps_cmd="$ps_cmd -Sound 'SMS'"
+                    ;;
+                approval)
+                    ps_cmd="$ps_cmd -Sound 'Reminder'"
+                    ;;
+                warning)
+                    ps_cmd="$ps_cmd -Sound 'Call'"
+                    ;;
+                *)
+                    ps_cmd="$ps_cmd -Sound 'Default'"
+                    ;;
+            esac
+
+            # Make persistent if needed
+            if [[ "$persistent" == "true" ]]; then
+                ps_cmd="$ps_cmd -ExpirationTime ([DateTime]::Now.AddHours(1))"
+            fi
+
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ps_cmd" 2>/dev/null &
+            ;;
+
+        snoretoast)
+            local snore_args="-t \"$title\" -m \"$message\" -appID \"Codex\""
+
+            # Add icon based on type
+            case "$type" in
+                error)   snore_args="$snore_args -i 'C:\\Windows\\System32\\imageres.dll,98'" ;;
+                success) snore_args="$snore_args -i 'C:\\Windows\\System32\\imageres.dll,99'" ;;
+                warning|approval) snore_args="$snore_args -i 'C:\\Windows\\System32\\imageres.dll,79'" ;;
+            esac
+
+            # Make persistent
+            if [[ "$persistent" == "true" ]]; then
+                snore_args="$snore_args -d long"
+            fi
+
+            eval "snoretoast.exe $snore_args" 2>/dev/null &
+            ;;
+
+        msg)
+            # Simple message box fallback
+            msg.exe "$USER" "/TIME:30" "$title: $message" 2>/dev/null &
+            ;;
+
+        *)
+            # Terminal bell as last resort
+            printf '\a' >&2
+            ;;
+    esac
+
+    # Also play sound if configured
+    if [[ "$NOTIFY_SOUND" == "true" ]] && [[ "$type" == "success" || "$type" == "approval" ]]; then
+        # Try to play Linux system sound as additional feedback
+        paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null &
+    fi
+}
+
+# Test mode for debugging
+if [[ "$1" == "test" ]]; then
+    case "$2" in
+        approval)
+            send_notification "Codex Approval Required" "Switch to terminal to approve command" "approval" "true"
+            ;;
+        complete)
+            send_notification "Codex Task Complete" "Your task has finished successfully" "success"
+            ;;
+        error)
+            send_notification "Codex Error" "An error occurred during execution" "error" "true"
+            ;;
+        all)
+            send_notification "Test: Info" "This is an info notification" "info"
+            sleep 2
+            send_notification "Test: Success" "This is a success notification" "success"
+            sleep 2
+            send_notification "Test: Warning" "This is a warning notification" "warning"
+            sleep 2
+            send_notification "Test: Error" "This is an error notification" "error" "true"
+            sleep 2
+            send_notification "Test: Approval" "This is an approval notification" "approval" "true"
+            ;;
+        *)
+            echo "Usage: codex-notify test {approval|complete|error|all}"
+            exit 1
+            ;;
+    esac
+    exit 0
+fi
+
+# Check if codex is installed
+if [[ ! -x "$CODEX_CMD" ]]; then
+    echo "Error: codex not found in PATH" >&2
+    exit 1
+fi
+
+# Track start time for long-running detection
+START_TIME=$(date +%s)
+LONG_RUN_NOTIFIED=false
+
+# Pattern definitions
+APPROVAL_PATTERNS="approval requested|waiting for permission|Approve\?|permission required|waiting for your approval|needs your approval"
+ERROR_PATTERNS="command failed|error occurred|exception|fatal error|failed to execute|permission denied"
+SUCCESS_PATTERNS="task complete|finished successfully|completed successfully|done\.|all tasks completed"
+START_PATTERNS="starting task|beginning|initiating|processing|executing"
+
+# Add custom patterns if defined
+if [[ -n "$CUSTOM_PATTERNS" ]]; then
+    APPROVAL_PATTERNS="$APPROVAL_PATTERNS|$CUSTOM_PATTERNS"
+fi
+
+# Monitor function for long-running tasks
+monitor_duration() {
+    while kill -0 $$ 2>/dev/null; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - START_TIME))
+
+        # Notify after 60 seconds if not already notified
+        if [[ $elapsed -gt 60 ]] && [[ "$LONG_RUN_NOTIFIED" == "false" ]]; then
+            send_notification "Codex Long-Running Task" "Task has been running for over 1 minute" "info"
+            LONG_RUN_NOTIFIED=true
+        fi
+
+        sleep 30
+    done
+} &
+MONITOR_PID=$!
+
+# Cleanup function
+cleanup() {
+    kill $MONITOR_PID 2>/dev/null
+    wait $MONITOR_PID 2>/dev/null
+}
+trap cleanup EXIT
+
+# Main execution with output monitoring
+"$CODEX_CMD" "$@" 2>&1 | {
+    while IFS= read -r line; do
+        # Preserve colored output
+        echo "$line"
+
+        # Check for patterns and send notifications
+        if echo "$line" | grep -qiE "$APPROVAL_PATTERNS"; then
+            send_notification "Codex Needs Approval" "Switch to terminal to continue" "approval" "true"
+
+        elif echo "$line" | grep -qiE "$ERROR_PATTERNS"; then
+            # Extract error message if possible
+            error_msg=$(echo "$line" | sed 's/.*error[: ]*//i' | head -c 100)
+            send_notification "Codex Error" "${error_msg:-Check terminal for details}" "error" "true"
+
+        elif echo "$line" | grep -qiE "$SUCCESS_PATTERNS"; then
+            send_notification "Codex Complete" "Task finished successfully" "success"
+
+        elif echo "$line" | grep -qiE "$START_PATTERNS"; then
+            # Reset long-run notification for new task
+            LONG_RUN_NOTIFIED=false
+            START_TIME=$(date +%s)
+
+            if [[ "$NOTIFY_DEBUG" == "true" ]]; then
+                send_notification "Codex Started" "New task initiated" "info"
+            fi
+        fi
+    done
+
+    # Capture exit code
+    exit ${PIPESTATUS[0]}
+}
+
+# Store exit code
+EXIT_CODE=$?
+
+# Send final notification based on exit code
+if [[ $EXIT_CODE -eq 0 ]]; then
+    log_notification "info" "Codex session ended successfully"
+else
+    log_notification "error" "Codex session ended with error code: $EXIT_CODE"
+    send_notification "Codex Session Ended" "Session ended with error code: $EXIT_CODE" "warning"
+fi
+
+exit $EXIT_CODE

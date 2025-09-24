@@ -1,0 +1,47 @@
+{
+  "name": "codex-notify-wsl",
+  "version": "1.0.0",
+  "description": "Windows toast notifications for Codex running in WSL",
+  "main": "lib/index.js",
+  "bin": {
+    "codex-notify": "./bin/codex-notify",
+    "codex-notify-setup": "./bin/setup.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "test": "bash bin/codex-notify test all",
+    "config": "bash bin/codex-notify config"
+  },
+  "keywords": [
+    "codex",
+    "wsl",
+    "notifications",
+    "windows",
+    "toast",
+    "ai",
+    "coding-assistant"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/codex-notify-wsl.git"
+  },
+  "os": [
+    "linux"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "preferGlobal": true,
+  "files": [
+    "bin/",
+    "lib/",
+    "scripts/",
+    "config/",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {}
+}

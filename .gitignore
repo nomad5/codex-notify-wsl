@@ -1,0 +1,11 @@
+node_modules/
+*.log
+*.old
+.env
+notify.env
+dist/
+coverage/
+.DS_Store
+*.swp
+*.swo
+*~

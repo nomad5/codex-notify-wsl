@@ -1,0 +1,12 @@
+src/
+docs/
+assets/
+scripts/setup.sh
+scripts/create-notification-icons.ps1
+*.old
+*.log
+.git/
+.gitignore
+node_modules/
+*.test.js
+coverage/

@@ -1,0 +1,154 @@
+# Codex Notify Configuration
+# =========================
+# This file controls all aspects of the notification system.
+# Edit directly or run: codex-notify config
+
+# NOTIFICATION SETTINGS
+# ---------------------
+notifications:
+  # Enable/disable all notifications
+  enabled: true
+
+  # Notification method
+  # Options: auto, burnttoast, snoretoast, msg, bell
+  # - auto: Automatically detect best available method
+  # - burnttoast: Rich Windows notifications (requires BurntToast module)
+  # - snoretoast: Lightweight notifications (requires snoretoast.exe)
+  # - msg: Basic Windows message box
+  # - bell: Terminal bell only (fallback)
+  method: auto
+
+  # Make all notifications persistent (stay until dismissed)
+  persistent_by_default: false
+
+  # Play sounds with notifications
+  play_sounds: true
+
+  # Show notification preview in terminal (for debugging)
+  terminal_preview: false
+
+# NOTIFICATION TYPES
+# ------------------
+# Configure which events trigger notifications
+events:
+  # When Codex asks for approval/permission
+  approval:
+    enabled: true
+    persistent: true
+    sound: Reminder
+    title: "Codex Approval Required"
+    emoji: "🔐"
+
+  # When Codex completes a task
+  success:
+    enabled: true
+    persistent: false
+    sound: SMS
+    title: "Codex Complete"
+    emoji: "✅"
+
+  # When Codex encounters an error
+  error:
+    enabled: true
+    persistent: true
+    sound: Alarm
+    title: "Codex Error"
+    emoji: "❌"
+
+  # When a task runs longer than threshold
+  long_running:
+    enabled: true
+    persistent: false
+    sound: Default
+    title: "Codex Long-Running Task"
+    emoji: "⏱️"
+    # Threshold in seconds before considering task "long-running"
+    threshold_seconds: 60
+
+  # When Codex starts a new task
+  task_start:
+    enabled: false  # Usually too noisy
+    persistent: false
+    sound: Default
+    title: "Codex Task Started"
+    emoji: "▶️"
+
+# PATTERN MATCHING
+# ----------------
+# Define custom patterns to watch for in Codex output
+patterns:
+  # Patterns that trigger approval notifications
+  approval:
+    - "approval requested"
+    - "waiting for permission"
+    - "Approve?"
+    - "permission required"
+    - "needs your approval"
+    - "waiting for your approval"
+
+  # Patterns that trigger error notifications
+  error:
+    - "command failed"
+    - "error occurred"
+    - "exception"
+    - "fatal error"
+    - "failed to execute"
+    - "permission denied"
+
+  # Patterns that trigger success notifications
+  success:
+    - "task complete"
+    - "finished successfully"
+    - "completed successfully"
+    - "done."
+    - "all tasks completed"
+
+  # Add your own custom patterns here
+  custom:
+    # - "build complete"
+    # - "deployment successful"
+    # - "tests passed"
+
+# ADVANCED SETTINGS
+# -----------------
+advanced:
+  # Minimum seconds between notifications (prevents spam)
+  notification_cooldown: 2
+
+  # Log file location
+  log_file: "~/.codex/notifications.log"
+
+  # Maximum log file size in MB (rotates when exceeded)
+  max_log_size_mb: 10
+
+  # Keep this many rotated log files
+  log_rotation_count: 3
+
+  # Enable debug mode (verbose logging)
+  debug_mode: false
+
+  # Windows app ID for notification grouping
+  windows_app_id: "Codex"
+
+# SOUND FILES
+# -----------
+# Linux system sounds (for completion chime)
+sounds:
+  success: "/usr/share/sounds/freedesktop/stereo/complete.oga"
+  error: "/usr/share/sounds/freedesktop/stereo/dialog-error.oga"
+  warning: "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga"
+  # Custom sound files (absolute paths)
+  # custom_success: "/home/user/sounds/success.wav"
+
+# VISUAL CUSTOMIZATION
+# --------------------
+visuals:
+  # Use emojis in notification titles
+  use_emojis: true
+
+  # Path to custom icon directory (Windows path)
+  # Leave empty to use default icons
+  custom_icon_dir: ""
+
+  # Icon style: "colored" or "minimal"
+  icon_style: "colored"
