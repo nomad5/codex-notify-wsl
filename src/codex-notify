@@ -37,6 +37,43 @@ log_notification() {
     fi
 }
 
+resolve_command_path() {
+    local candidate resolved
+    for candidate in "$@"; do
+        [[ -z "$candidate" ]] && continue
+
+        if [[ "$candidate" == */* ]]; then
+            if [[ -x "$candidate" ]]; then
+                echo "$candidate"
+                return 0
+            fi
+        else
+            resolved=$(command -v "$candidate" 2>/dev/null || true)
+            if [[ -n "$resolved" ]]; then
+                echo "$resolved"
+                return 0
+            fi
+        fi
+    done
+
+    return 1
+}
+
+POWERSHELL_CMD=$(resolve_command_path \
+    "${CODEX_POWERSHELL_PATH:-}" \
+    "powershell.exe" \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" \
+    "/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe" \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/pwsh.exe" \
+    "/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/pwsh.exe")
+
+[[ -z "$POWERSHELL_CMD" ]] && log_notification "debug" "PowerShell not detected; BurntToast disabled"
+
+SNORETOAST_PATH=$(resolve_command_path \
+    "snoretoast.exe" \
+    "/mnt/c/Windows/System32/snoretoast.exe" \
+    "/mnt/c/WINDOWS/System32/snoretoast.exe")
+
 # Check for available notification methods
 check_notification_method() {
     if [[ "$NOTIFY_METHOD" != "auto" ]]; then
@@ -44,19 +81,18 @@ check_notification_method() {
         return
     fi
 
-    # Check for BurntToast
-    if powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Module -ListAvailable -Name BurntToast" 2>/dev/null | grep -q "BurntToast"; then
-        echo "burnttoast"
-        return
+    if [[ -n "$POWERSHELL_CMD" ]]; then
+        if "$POWERSHELL_CMD" -NoProfile -ExecutionPolicy Bypass -Command "Get-Module -ListAvailable -Name BurntToast" 2>/dev/null | grep -q "BurntToast"; then
+            echo "burnttoast"
+            return
+        fi
     fi
 
-    # Check for SnoreToast
-    if [[ -f "/mnt/c/Windows/System32/snoretoast.exe" ]] || command -v snoretoast.exe &>/dev/null; then
+    if [[ -n "$SNORETOAST_PATH" ]]; then
         echo "snoretoast"
         return
     fi
 
-    # Fallback to msg command
     if command -v msg.exe &>/dev/null; then
         echo "msg"
         return
@@ -82,10 +118,15 @@ send_notification() {
 
     case "$method" in
         burnttoast)
+            if [[ -z "$POWERSHELL_CMD" ]]; then
+                log_notification "warning" "BurntToast selected but PowerShell unavailable; using bell fallback"
+                printf '\a' >&2
+                return
+            fi
             # Add emojis and enhanced titles based on type
             local enhanced_title="$title"
             local icon_path=""
-            local windows_user=$(powershell.exe -NoProfile -Command 'echo $env:USERPROFILE' | tr -d '\r')
+            local windows_user=$("$POWERSHELL_CMD" -NoProfile -Command 'echo $env:USERPROFILE' | tr -d '\r')
             local icon_dir="${windows_user}\\.codex\\icons"
 
             case "$type" in
@@ -119,13 +160,13 @@ send_notification() {
             local ps_cmd="Import-Module BurntToast; New-BurntToastNotification -Text '$enhanced_title','$message'"
 
             # Check if custom icon exists, otherwise use default
-            local icon_check=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (Test-Path '$icon_path') { echo 'exists' }" | tr -d '\r\n')
+            local icon_check=$("$POWERSHELL_CMD" -NoProfile -ExecutionPolicy Bypass -Command "if (Test-Path '$icon_path') { echo 'exists' }" | tr -d '\r\n')
 
             if [[ "$icon_check" == "exists" ]]; then
                 ps_cmd="$ps_cmd -AppLogo '$icon_path'"
             else
                 # Fallback to Windows Terminal icon or cmd.exe
-                if powershell.exe -NoProfile -Command "Test-Path 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal*\\WindowsTerminal.exe'" 2>/dev/null | grep -q "True"; then
+                if "$POWERSHELL_CMD" -NoProfile -Command "Test-Path 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal*\\WindowsTerminal.exe'" 2>/dev/null | grep -q "True"; then
                     # Try to use Windows Terminal icon
                     ps_cmd="$ps_cmd -AppLogo 'C:\\Windows\\System32\\cmd.exe'"
                 else
@@ -157,10 +198,11 @@ send_notification() {
                 ps_cmd="$ps_cmd -ExpirationTime ([DateTime]::Now.AddHours(1))"
             fi
 
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ps_cmd" 2>/dev/null &
+            "$POWERSHELL_CMD" -NoProfile -ExecutionPolicy Bypass -Command "$ps_cmd" 2>/dev/null &
             ;;
 
         snoretoast)
+            local snore_cmd="${SNORETOAST_PATH:-snoretoast.exe}"
             local snore_args="-t \"$title\" -m \"$message\" -appID \"Codex\""
 
             # Add icon based on type
@@ -175,7 +217,7 @@ send_notification() {
                 snore_args="$snore_args -d long"
             fi
 
-            eval "snoretoast.exe $snore_args" 2>/dev/null &
+            eval "$snore_cmd $snore_args" 2>/dev/null &
             ;;
 
         msg)

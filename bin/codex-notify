@@ -74,6 +74,44 @@ log_notification() {
     fi
 }
 
+# Resolve commands that may live outside PATH
+resolve_command_path() {
+    local candidate resolved
+    for candidate in "$@"; do
+        [[ -z "$candidate" ]] && continue
+
+        if [[ "$candidate" == */* ]]; then
+            if [[ -x "$candidate" ]]; then
+                echo "$candidate"
+                return 0
+            fi
+        else
+            resolved=$(command -v "$candidate" 2>/dev/null || true)
+            if [[ -n "$resolved" ]]; then
+                echo "$resolved"
+                return 0
+            fi
+        fi
+    done
+
+    return 1
+}
+
+POWERSHELL_CMD=$(resolve_command_path \
+    "${CODEX_POWERSHELL_PATH:-}" \
+    "powershell.exe" \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" \
+    "/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe" \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/pwsh.exe" \
+    "/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/pwsh.exe")
+
+[[ -z "$POWERSHELL_CMD" ]] && log_notification "debug" "PowerShell not detected; BurntToast disabled"
+
+SNORETOAST_PATH=$(resolve_command_path \
+    "snoretoast.exe" \
+    "/mnt/c/Windows/System32/snoretoast.exe" \
+    "/mnt/c/WINDOWS/System32/snoretoast.exe")
+
 # Check for available notification methods
 check_notification_method() {
     if [[ "$NOTIFY_METHOD" != "auto" ]]; then
@@ -81,18 +119,24 @@ check_notification_method() {
         return
     fi
 
-    # Check for BurntToast
-    if powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Module -ListAvailable -Name BurntToast" 2>/dev/null | grep -q "BurntToast"; then
-        echo "burnttoast"
-    # Check for SnoreToast
-    elif [[ -f "/mnt/c/Windows/System32/snoretoast.exe" ]] || command -v snoretoast.exe &>/dev/null; then
-        echo "snoretoast"
-    # Check for msg.exe
-    elif command -v msg.exe &>/dev/null; then
-        echo "msg"
-    else
-        echo "bell"
+    if [[ -n "$POWERSHELL_CMD" ]]; then
+        if "$POWERSHELL_CMD" -NoProfile -ExecutionPolicy Bypass -Command "Get-Module -ListAvailable -Name BurntToast" 2>/dev/null | grep -q "BurntToast"; then
+            echo "burnttoast"
+            return
+        fi
     fi
+
+    if [[ -n "$SNORETOAST_PATH" ]]; then
+        echo "snoretoast"
+        return
+    fi
+
+    if command -v msg.exe &>/dev/null; then
+        echo "msg"
+        return
+    fi
+
+    echo "bell"
 }
 
 # Send Windows notification
@@ -151,6 +195,11 @@ send_notification() {
 
     case "$method" in
         burnttoast)
+            if [[ -z "$POWERSHELL_CMD" ]]; then
+                log_notification "warning" "BurntToast selected but PowerShell unavailable; using bell fallback"
+                printf '\a' >&2
+                return
+            fi
             local ps_persistent="false"
             [[ "$persistent_flag" == "true" ]] && ps_persistent="true"
 
@@ -185,7 +234,7 @@ try {
 }
 POWERSHELL
 
-                timeout 10 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps_temp" \
+                timeout 10 "$POWERSHELL_CMD" -NoProfile -ExecutionPolicy Bypass -File "$ps_temp" \
                     "$display_title" "$message" "$WINDOWS_APP_ID" "$sound" "$ps_persistent" \
                     >/dev/null 2>&1
                 rm -f "$ps_temp"
@@ -193,9 +242,10 @@ POWERSHELL
             ;;
 
         snoretoast)
+            local snore_cmd="${SNORETOAST_PATH:-snoretoast.exe}"
             local args=(-t "$display_title" -m "$message" -appID "$WINDOWS_APP_ID")
             [[ "$persistent_flag" == "true" ]] && args+=(-d "long")
-            timeout 10 snoretoast.exe "${args[@]}" >/dev/null 2>&1 &
+            timeout 10 "$snore_cmd" "${args[@]}" >/dev/null 2>&1 &
             ;;
 
         msg)

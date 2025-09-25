@@ -1,6 +1,6 @@
 {
   "name": "codex-notify-wsl",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Windows toast notifications for Codex running in WSL",
   "main": "lib/index.js",
   "bin": {
