@@ -238,7 +238,7 @@ START_TIME=$(date +%s)
 LONG_RUN_NOTIFIED=false
 
 # Pattern definitions
-APPROVAL_PATTERNS="approval requested|waiting for permission|Approve\?|permission required|waiting for your approval|needs your approval"
+APPROVAL_PATTERNS="approval requested|waiting for permission|Approve\?|permission required|waiting for your approval|needs your approval|requires approval|requires your approval|requires confirmation|confirmation required|confirm command\?|confirm action\?|confirm to continue|confirm\?|\ballow[^?]*\?|awaiting approval"
 ERROR_PATTERNS="command failed|error occurred|exception|fatal error|failed to execute|permission denied"
 SUCCESS_PATTERNS="task complete|finished successfully|completed successfully|done\.|all tasks completed"
 START_PATTERNS="starting task|beginning|initiating|processing|executing"

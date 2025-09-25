@@ -85,6 +85,16 @@ patterns:
     - "permission required"
     - "needs your approval"
     - "waiting for your approval"
+    - "requires approval"
+    - "requires your approval"
+    - "requires confirmation"
+    - "confirmation required"
+    - "confirm command?"
+    - "confirm action?"
+    - "confirm to continue"
+    - "confirm?"
+    - "\\ballow[^?]*\\?"
+    - "awaiting approval"
 
   # Patterns that trigger error notifications
   error:

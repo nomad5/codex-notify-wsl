@@ -105,7 +105,7 @@ def handle_notification_event(event: Dict[str, Any]) -> bool:
 
     reason_lower = reason.lower()
 
-    if "permission" in reason_lower or "approval" in reason_lower:
+    if any(keyword in reason_lower for keyword in ("permission", "approval", "allow", "confirm")):
         notif_type = "approval"
         persistent = True
         if not title:
