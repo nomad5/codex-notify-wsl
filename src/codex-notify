@@ -278,19 +278,25 @@ trap cleanup EXIT
         # Preserve colored output
         echo "$line"
 
+        clean_line="$line"
+        if [[ "$clean_line" == *$'\e['* ]]; then
+            clean_line=$(printf '%s\n' "$clean_line" | sed $'s/\x1B\[[0-9;]*[A-Za-z]//g')
+        fi
+        clean_line="${clean_line//$'\r'/}"
+
         # Check for patterns and send notifications
-        if echo "$line" | grep -qiE "$APPROVAL_PATTERNS"; then
+        if echo "$clean_line" | grep -qiE "$APPROVAL_PATTERNS"; then
             send_notification "Codex Needs Approval" "Switch to terminal to continue" "approval" "true"
 
-        elif echo "$line" | grep -qiE "$ERROR_PATTERNS"; then
+        elif echo "$clean_line" | grep -qiE "$ERROR_PATTERNS"; then
             # Extract error message if possible
-            error_msg=$(echo "$line" | sed 's/.*error[: ]*//i' | head -c 100)
+            error_msg=$(echo "$clean_line" | sed 's/.*error[: ]*//i' | head -c 100)
             send_notification "Codex Error" "${error_msg:-Check terminal for details}" "error" "true"
 
-        elif echo "$line" | grep -qiE "$SUCCESS_PATTERNS"; then
+        elif echo "$clean_line" | grep -qiE "$SUCCESS_PATTERNS"; then
             send_notification "Codex Complete" "Task finished successfully" "success"
 
-        elif echo "$line" | grep -qiE "$START_PATTERNS"; then
+        elif echo "$clean_line" | grep -qiE "$START_PATTERNS"; then
             # Reset long-run notification for new task
             LONG_RUN_NOTIFIED=false
             START_TIME=$(date +%s)

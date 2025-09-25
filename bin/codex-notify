@@ -341,6 +341,12 @@ trap cleanup EXIT
     while IFS= read -r line; do
         echo "$line"  # Pass through output
 
+        clean_line="$line"
+        if [[ "$clean_line" == *$'\e['* ]]; then
+            clean_line=$(printf '%s\n' "$clean_line" | sed $'s/\x1B\[[0-9;]*[A-Za-z]//g')
+        fi
+        clean_line="${clean_line//$'\r'/}"
+
         # Rate limiting
         current_time=$(date +%s)
         if [[ $((current_time - LAST_NOTIFICATION)) -lt $NOTIFICATION_COOLDOWN ]]; then
@@ -348,23 +354,23 @@ trap cleanup EXIT
         fi
 
         # Check patterns and send notifications
-        if echo "$line" | grep -qiE "$APPROVAL_PATTERNS"; then
+        if echo "$clean_line" | grep -qiE "$APPROVAL_PATTERNS"; then
             send_notification "Codex Needs Approval" "Switch to terminal" "approval" "true"
             LAST_NOTIFICATION=$current_time
 
-        elif echo "$line" | grep -qiE "$ERROR_PATTERNS"; then
+        elif echo "$clean_line" | grep -qiE "$ERROR_PATTERNS"; then
             send_notification "Codex Error" "Check terminal for details" "error" "true"
             LAST_NOTIFICATION=$current_time
 
-        elif echo "$line" | grep -qiE "$SUCCESS_PATTERNS"; then
+        elif echo "$clean_line" | grep -qiE "$SUCCESS_PATTERNS"; then
             send_notification "Codex Complete" "Task finished" "success"
             LAST_NOTIFICATION=$current_time
 
-        elif [[ -n "$CUSTOM_PATTERN_REGEX" ]] && echo "$line" | grep -qiE "$CUSTOM_PATTERN_REGEX"; then
-            send_notification "Codex Update" "$line" "info"
+        elif [[ -n "$CUSTOM_PATTERN_REGEX" ]] && echo "$clean_line" | grep -qiE "$CUSTOM_PATTERN_REGEX"; then
+            send_notification "Codex Update" "$clean_line" "info"
             LAST_NOTIFICATION=$current_time
 
-        elif echo "$line" | grep -qiE "$START_PATTERNS"; then
+        elif echo "$clean_line" | grep -qiE "$START_PATTERNS"; then
             LONG_RUN_NOTIFIED=false
             START_TIME=$(date +%s)
         fi
